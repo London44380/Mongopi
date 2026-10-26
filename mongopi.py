@@ -51,6 +51,13 @@ RED = "\033[38;5;196m"
 YELLOW = "\033[38;5;220m"
 GREY = "\033[38;5;244m"
 
+def clean(s) -> str:
+    """Neutralise control characters (ANSI escapes...) from server-controlled
+    data (version string, db/collection names, error text) before it reaches
+    the terminal or a JSON report."""
+    return "".join(c if c.isprintable() else repr(c)[1:-1] for c in str(s))
+
+
 DEFAULT_PORT = 27017
 DEFAULT_TIMEOUT_MS = 6000
 SYSTEM_DBS = {"admin", "local", "config"}
@@ -276,9 +283,9 @@ def render_result(r: dict) -> str:
     if r["status"] == "unreachable":
         hint = unreachable_hint(r["error"] or "")
         hint_text = f"\n      {YELLOW}hint: {hint}{RESET}" if hint else ""
-        return f"  {GREY}{target:<30}{RESET} {GREY}unreachable ({r['error']}){RESET}{hint_text}"
+        return f"  {GREY}{target:<30}{RESET} {GREY}unreachable ({clean(r['error'])}){RESET}{hint_text}"
 
-    version_tag = f" [v{r['version']}]" if r.get("version") else " [version hidden]"
+    version_tag = f" [v{clean(r['version'])}]" if r.get("version") else " [version hidden]"
 
     if r["auth_required"]:
         return f"  {target:<30} {ECO_GREEN}auth required - OK{RESET}{TEAL}{version_tag}{RESET}"
@@ -286,9 +293,9 @@ def render_result(r: dict) -> str:
     lines = [f"  {target:<30} {RED}{BOLD}NO AUTH - EXPOSED{RESET}{TEAL}{version_tag}{RESET}"]
     for db in r["databases"]:
         coll_summary = ", ".join(
-            f"{c['name']} (~{c['approx_docs']} docs)" for c in db["collections"]
+            f"{clean(c['name'])} (~{c['approx_docs']} docs)" for c in db["collections"]
         ) or "(no collections)"
-        lines.append(f"      {YELLOW}db={db['name']}{RESET}: {coll_summary}")
+        lines.append(f"      {YELLOW}db={clean(db['name'])}{RESET}: {coll_summary}")
     return "\n".join(lines)
 
 
@@ -355,7 +362,7 @@ def main():
     if detected:
         print(f"\n{BOLD}Detected versions:{RESET}")
         for r in detected:
-            v = r.get("version") or "hidden"
+            v = clean(r.get("version") or "hidden")
             print(f"  {r['host']}:{r['port']} -> {v}")
 
     if args.json_report:
